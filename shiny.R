@@ -17,8 +17,9 @@ server <- function(input, output, session) {
   # Reactive values for game state
   score <- reactiveVal(0)
   achievements <- reactiveVal(c())
-  character <- reactiveValues(name = "", role = "")
+  character <- reactiveValues(name = NULL, role = NULL)
   current_page <- reactiveVal("character_creation")
+  next_enabled <- reactiveVal(FALSE) # Track whether the "Next Level" button is enabled
   
   # Dynamic UI Rendering
   output$story_ui <- renderUI({
@@ -57,12 +58,16 @@ server <- function(input, output, session) {
                        "Avoid entirely" = "avoid"
                      )),
         actionButton("submit_level1", "Submit Decision"),
+        br(), br(), # Add space between buttons
+        uiOutput("next_button"), # Display "Next Level" button dynamically
         textOutput("level1_feedback")
       )
     } else if (current_page() == "level2") {
       fluidPage(
         h3("Level 2: Survivorship Bias"),
         p("Challenge Background: Customer retention numbers show that existing clients are highly satisfied with your products. However, sales figures reveal a steady decline in new customer acquisition. The marketing team suggests improving features based on feedback from loyal customers, but your data analyst warns that ignoring lost customers may lead to blind spots in your strategy."),
+        p("Class Concept: Survivorship bias occurs when we focus on successful cases and ignore failures, leading to misleading conclusions."),
+        p("Scenario: You need to decide whether to focus on existing customers, analyze lost customers, or invest in new features."),
         radioButtons("level2_choice", "Your Decision:",
                      choices = list(
                        "Focus on existing customers" = "current",
@@ -70,24 +75,32 @@ server <- function(input, output, session) {
                        "Invest in new features" = "new"
                      )),
         actionButton("submit_level2", "Submit Decision"),
+        br(), br(),
+        uiOutput("next_button"),
         textOutput("level2_feedback")
       )
     } else if (current_page() == "level3") {
       fluidPage(
         h3("Level 3: Framing Bias"),
         p("Challenge Background: The company faces budget constraints that require a reduction in headcount. The HR team proposes two different ways to communicate this to employees: one frames the decision positively (saving jobs), while the other emphasizes transparency (letting people go)."),
+        p("Class Concept: Framing bias shows how people react differently depending on how information is presented."),
+        p("Scenario: Choose how to frame the communication to your employees."),
         radioButtons("level3_choice", "Your Decision:",
                      choices = list(
                        "Save 70% of jobs" = "positive",
                        "Let 30% of employees go" = "negative"
                      )),
         actionButton("submit_level3", "Submit Decision"),
+        br(), br(),
+        uiOutput("next_button"),
         textOutput("level3_feedback")
       )
     } else if (current_page() == "level4") {
       fluidPage(
         h3("Level 4: Hiring Decisions"),
         p("Challenge Background: The company is developing a high-stakes project to regain market share. The success of this project hinges on hiring the right leader, but each candidate presents unique trade-offs."),
+        p("Class Concept: Decision-making under uncertainty and evaluating trade-offs."),
+        p("Scenario: Choose the best candidate for leading the project."),
         radioButtons("level4_choice", "Your Decision:",
                      choices = list(
                        "Candidate A: High Experience, $50,000" = "A",
@@ -95,6 +108,8 @@ server <- function(input, output, session) {
                        "Candidate C: Low Experience, $15,000" = "C"
                      )),
         actionButton("submit_level4", "Submit Decision"),
+        br(), br(),
+        uiOutput("next_button"),
         textOutput("level4_feedback")
       )
     } else if (current_page() == "congratulations") {
@@ -109,16 +124,19 @@ server <- function(input, output, session) {
           tags$li("Always consider the unseen factors, like lost customers or hidden biases."),
           tags$li("Communicate clearly and positively to influence others effectively.")
         ),
-        p("May this game remind you of the lessons learned and inspire you to apply them to every challenge ahead.")
+        p("May this game remind you of the lessons learned and inspire you to apply them to every challenge ahead."),
+        actionButton("play_again", "Play Again")
       )
     }
   })
   
-  # Button Actions to Navigate Pages
+  # Button Actions
   observeEvent(input$start_story, {
     character$name <- input$character_name
     character$role <- input$character_role
-    current_page("story_intro")
+    if (character$name != "" && character$role != "") {
+      current_page("story_intro")
+    }
   })
   
   observeEvent(input$to_level1, {
@@ -129,75 +147,168 @@ server <- function(input, output, session) {
     feedback <- ""
     if (input$level1_choice == "risky") {
       feedback <- "Overconfidence! You ignored the risks and lost your investment."
+      showModal(modalDialog(
+        title = "Feedback: Invest Everything",
+        "Overconfidence bias often leads to poor decisions. By ignoring the risks, you overestimated the chances of success.",
+        easyClose = TRUE,
+        footer = modalButton("Close")
+      ))
       score(score() - 20)
     } else if (input$level1_choice == "cautious") {
       feedback <- "Great decision! You balanced risk and reward effectively."
+      showModal(modalDialog(
+        title = "Feedback: Invest Cautiously",
+        "This approach balances optimism with a data-driven strategy, ensuring you consider potential risks and rewards.",
+        easyClose = TRUE,
+        footer = modalButton("Close")
+      ))
       score(score() + 20)
-      achievements(c(achievements(), "Level 1 Mastered"))
-    } else {
+    } else if (input$level1_choice == "avoid") {
       feedback <- "Safe choice, but you missed an opportunity."
+      showModal(modalDialog(
+        title = "Feedback: Avoid Investment",
+        "While avoiding risks ensures stability, it also means you missed a potential growth opportunity.",
+        easyClose = TRUE,
+        footer = modalButton("Close")
+      ))
       score(score() + 10)
     }
     output$level1_feedback <- renderText(feedback)
-    current_page("level2")
+    next_enabled(TRUE)
   })
   
   observeEvent(input$submit_level2, {
     feedback <- ""
     if (input$level2_choice == "lost") {
       feedback <- "Great choice! Understanding lost customers prevents survivorship bias."
+      showModal(modalDialog(
+        title = "Feedback: Analyze Lost Customers",
+        "By analyzing lost customers, you gain insights into why they left, allowing you to improve and attract new clients.",
+        easyClose = TRUE,
+        footer = modalButton("Close")
+      ))
       score(score() + 20)
-      achievements(c(achievements(), "Level 2 Mastered"))
     } else if (input$level2_choice == "current") {
       feedback <- "Focusing on existing customers is safe but ignores crucial insights."
+      showModal(modalDialog(
+        title = "Feedback: Focus on Existing Customers",
+        "While keeping current customers happy is important, ignoring why others leave may hurt long-term growth.",
+        easyClose = TRUE,
+        footer = modalButton("Close")
+      ))
       score(score() + 10)
     } else {
       feedback <- "Investing in new features without understanding losses is risky."
+      showModal(modalDialog(
+        title = "Feedback: Invest in New Features",
+        "Adding new features might not address the underlying issues causing customer loss.",
+        easyClose = TRUE,
+        footer = modalButton("Close")
+      ))
       score(score() - 10)
     }
     output$level2_feedback <- renderText(feedback)
-    current_page("level3")
+    next_enabled(TRUE)
   })
   
   observeEvent(input$submit_level3, {
     feedback <- ""
     if (input$level3_choice == "positive") {
       feedback <- "Good framing! Focusing on saving jobs boosts morale."
+      showModal(modalDialog(
+        title = "Feedback: Positive Framing",
+        "Framing the situation positively can help maintain employee morale during tough times.",
+        easyClose = TRUE,
+        footer = modalButton("Close")
+      ))
       score(score() + 20)
-      achievements(c(achievements(), "Level 3 Mastered"))
-    } else {
+    } else if (input$level3_choice == "negative") {
       feedback <- "Transparency is important but may hurt morale."
+      showModal(modalDialog(
+        title = "Feedback: Transparent Framing",
+        "Being transparent is ethical but framing negatively can demotivate remaining employees.",
+        easyClose = TRUE,
+        footer = modalButton("Close")
+      ))
       score(score() + 10)
     }
     output$level3_feedback <- renderText(feedback)
-    current_page("level4")
+    next_enabled(TRUE)
   })
   
   observeEvent(input$submit_level4, {
     feedback <- ""
     if (input$level4_choice == "B") {
       feedback <- "Excellent balance of cost and experience!"
+      showModal(modalDialog(
+        title = "Feedback: Candidate B",
+        "Choosing Candidate B offers a good mix of experience and affordability, making it a strategic choice.",
+        easyClose = TRUE,
+        footer = modalButton("Close")
+      ))
       score(score() + 20)
-      achievements(c(achievements(), "Level 4 Mastered"))
     } else if (input$level4_choice == "A") {
       feedback <- "Strong candidate, but very costly."
+      showModal(modalDialog(
+        title = "Feedback: Candidate A",
+        "While highly experienced, the cost may strain your budget.",
+        easyClose = TRUE,
+        footer = modalButton("Close")
+      ))
       score(score() + 10)
-    } else {
+    } else if (input$level4_choice == "C") {
       feedback <- "Inexpensive, but risky due to lack of experience."
+      showModal(modalDialog(
+        title = "Feedback: Candidate C",
+        "Low cost is appealing, but lack of experience may jeopardize the project's success.",
+        easyClose = TRUE,
+        footer = modalButton("Close")
+      ))
       score(score() - 10)
     }
     output$level4_feedback <- renderText(feedback)
-    current_page("congratulations")
+    next_enabled(TRUE)
+  })
+  
+  # Handle Next Level Logic
+  observe({
+    if (next_enabled()) {
+      output$next_button <- renderUI({
+        actionButton("next_level", "Next Level")
+      })
+    } else {
+      output$next_button <- renderUI(NULL)
+    }
+  })
+  
+  observeEvent(input$next_level, {
+    next_enabled(FALSE)
+    if (current_page() == "level1") {
+      current_page("level2")
+    } else if (current_page() == "level2") {
+      current_page("level3")
+    } else if (current_page() == "level3") {
+      current_page("level4")
+    } else if (current_page() == "level4") {
+      current_page("congratulations")
+    }
+  })
+  
+  observeEvent(input$play_again, {
+    score(0)
+    achievements(c())
+    character$name <- NULL
+    character$role <- NULL
+    current_page("character_creation")
   })
   
   # Example Data for Level 1
-  observe({
-    startup_data <- data.frame(
+  output$data_table <- renderTable({
+    data.frame(
       Year = 1:5,
       Revenue = c(5000, 15000, 30000, 60000, 120000),
       Risk = c(0.8, 0.7, 0.6, 0.4, 0.3)
     )
-    output$data_table <- renderTable(startup_data)
   })
   
   # Final Story Summary
@@ -206,8 +317,7 @@ server <- function(input, output, session) {
       "Starting as", character$role, ",", character$name, ", you faced monumental challenges:",
       "navigating biases, analyzing customer data, and making tough HR decisions."
     )
-    
-    if (score() == 80 && length(achievements()) == 4) {
+    if (score() >= 70) {
       story <- paste(
         story,
         "Your flawless decision-making transformed the company. Investors are thrilled, employees trust your leadership, and the company is now an industry leader!"
@@ -217,18 +327,12 @@ server <- function(input, output, session) {
         story,
         "Your strong decision-making and strategic vision stabilized the company. You mastered some challenges but missed minor opportunities. The outlook is promising."
       )
-    } else if (score() >= 20) {
-      story <- paste(
-        story,
-        "Despite your efforts, inconsistent decisions have left the company struggling. Employee morale is low, and financial stability remains precarious."
-      )
     } else {
       story <- paste(
         story,
-        "Unfortunately, your decisions caused significant setbacks. The company faces severe challenges, and recovery will require substantial effort."
+        "Your decisions left the company struggling. There's room for improvement, but the experience has provided valuable lessons for future endeavors."
       )
     }
-    
     HTML(story)
   })
 }
